@@ -261,6 +261,34 @@ fn bash_pipes_and_substitutions() {
     assert!(sandbox.drain_output().ends_with("after\n"));
 }
 
+/// A program waiting for its child's pid wakes when the child exits.
+/// `xargs` and `find -exec` run `cat` into a pipe; with more than the
+/// pipe's 64 KiB, `cat` blocks, its parent sleeps in `waitpid()`, and
+/// the kernel never woke it when `cat` exited, so the guest deadlocked.
+#[test]
+fn bash_waits_for_a_child_that_fills_a_pipe() {
+    let rootfs = require_rootfs("bash");
+    let mut sandbox = SandboxBuilder::from_initrd(rootfs)
+        .scratch_mb(256)
+        .boot()
+        .unwrap();
+    sandbox
+        .run(
+            "mkdir -p /tmp/w; i=0; while [ $i -lt 2000 ]; do \
+             echo 0123456789012345678901234567890123456789; i=$((i+1)); \
+             done > /tmp/w/a; cp /tmp/w/a /tmp/w/b",
+        )
+        .unwrap();
+    sandbox
+        .run("find /tmp/w -type f -print0 | xargs -0 cat | wc -c")
+        .unwrap();
+    assert_eq!(sandbox.drain_output().trim(), "164000");
+    sandbox
+        .run("find /tmp/w -type f -exec cat {} + | wc -c")
+        .unwrap();
+    assert_eq!(sandbox.drain_output().trim(), "164000");
+}
+
 /// `exit` ends the shell, which is the runtime: the call ends with that
 /// status, and the next call starts a fresh shell.
 #[test]
