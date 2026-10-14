@@ -1,6 +1,6 @@
 [submodule "kernel/unikraft"]
 	path = kernel/unikraft
-	# The fork until plat-hyperlight-v2 takes its waitpid wake-up fix.
+	# The fork until plat-hyperlight-v2 takes its waitpid and signal wake-up fixes.
 	url = https://github.com/sozercan/unikraft.git
 	branch = hluk-pipe-deadlock
 [submodule "kernel/app-elfloader"]
