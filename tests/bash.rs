@@ -289,6 +289,26 @@ fn bash_waits_for_a_child_that_fills_a_pipe() {
     assert_eq!(sandbox.drain_output().trim(), "164000");
 }
 
+/// The shell's `wait` for a background job that is still running sleeps
+/// in `sigsuspend()` until `SIGCHLD`, and the kernel queued an exiting
+/// child's `SIGCHLD` without waking it, so the guest deadlocked.
+#[test]
+fn bash_waits_for_a_running_background_job() {
+    let rootfs = require_rootfs("bash");
+    let mut sandbox = SandboxBuilder::from_initrd(rootfs)
+        .scratch_mb(256)
+        .boot()
+        .unwrap();
+    sandbox
+        .run("sleep 0.1 & sleep 0.2 & wait; echo all")
+        .unwrap();
+    assert_eq!(sandbox.drain_output(), "all\n");
+    sandbox
+        .run(r#"sh -c "sleep 0.1; exit 3" & wait $!; echo $?"#)
+        .unwrap();
+    assert_eq!(sandbox.drain_output(), "3\n");
+}
+
 /// `exit` ends the shell, which is the runtime: the call ends with that
 /// status, and the next call starts a fresh shell.
 #[test]
